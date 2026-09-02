@@ -12,48 +12,19 @@ jobs:
       - name: Get your code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Neutralino CLI (CORRECT PACKAGE NAME)
-        run: npm install -g @neutralinojs/cli
-
-      - name: Verify CLI works
-        run: neu --version
-
-      - name: Initialize Project
-        run: neu init --force --template=window
-
-      - name: Copy your app code
-        run: Copy-Item index.html app/index.html -Force
-
-      - name: Configure App
-        shell: pwsh
+      - name: Download html-exe builder
         run: |
-          $json = Get-Content "app/neutralino.config.json" -Raw | ConvertFrom-Json
-          $json.cli.binaryName = "LittleNavmapFlightPlanner"
-          $json.application.title = "Little Navmap Flight Planner"
-          $json.application.width = 1050
-          $json.application.height = 850
-          $json.application.resizable = $true
-          $json.application.mode = "window"
-          $json | ConvertTo-Json -Depth 10 | Set-Content "app/neutralino.config.json"
+          Invoke-WebRequest -Uri "https://github.com/michal-kokoska/html-exe/releases/download/v1.2.0/html-exe.exe" -OutFile "html-exe.exe"
 
-      - name: Build Standalone EXE
-        run: neu build --release
+      - name: Build EXE from your HTML
+        run: .\html-exe.exe --input index.html --output LittleNavmapFlightPlanner.exe --title "Little Navmap Flight Planner" --width 1050 --height 850
 
       - name: Package into ZIP
-        run: |
-          New-Item -ItemType Directory -Path "package" -Force | Out-Null
-          Copy-Item "dist\LittleNavmapFlightPlanner\LittleNavmapFlightPlanner.exe" "package\"
-          Copy-Item "dist\LittleNavmapFlightPlanner\resources.neu" "package\"
-          Compress-Archive -Path "package\*" -DestinationPath "LittleNavmapFlightPlanner.zip"
+        run: Compress-Archive -Path "LittleNavmapFlightPlanner.exe" -DestinationPath "LittleNavmapFlightPlanner-Windows.zip"
 
-      - name: ✅ Download Your App
+      - name: ✅ Download Your Finished App
         uses: actions/upload-artifact@v4
         with:
           name: LittleNavmapFlightPlanner
-          path: LittleNavmapFlightPlanner.zip
+          path: LittleNavmapFlightPlanner-Windows.zip
           retention-days: 90
