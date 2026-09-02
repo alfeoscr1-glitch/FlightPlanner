@@ -12,19 +12,24 @@ jobs:
       - name: Get your code
         uses: actions/checkout@v4
 
-      - name: Download Neutralino CLI (Direct from GitHub Release)
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/neutralinojs/neutralino-cli/releases/download/v4.15.0/neu-win-x64.exe" -OutFile "neu.exe"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Verify CLI downloaded
-        run: .\neu.exe --version
+      - name: Install Neutralino CLI (CORRECT PACKAGE NAME)
+        run: npm install -g @neutralinojs/cli
 
-      - name: Setup Project
-        run: |
-          .\neu.exe init --force --template=window
-          Copy-Item index.html app/index.html -Force
+      - name: Verify CLI works
+        run: neu --version
 
-      - name: Configure App Settings
+      - name: Initialize Project
+        run: neu init --force --template=window
+
+      - name: Copy your app code
+        run: Copy-Item index.html app/index.html -Force
+
+      - name: Configure App
         shell: pwsh
         run: |
           $json = Get-Content "app/neutralino.config.json" -Raw | ConvertFrom-Json
@@ -34,22 +39,21 @@ jobs:
           $json.application.height = 850
           $json.application.resizable = $true
           $json.application.mode = "window"
-          $json.application.enableInspector = $false
           $json | ConvertTo-Json -Depth 10 | Set-Content "app/neutralino.config.json"
 
       - name: Build Standalone EXE
-        run: .\neu.exe build --release
+        run: neu build --release
 
-      - name: Package Everything
+      - name: Package into ZIP
         run: |
           New-Item -ItemType Directory -Path "package" -Force | Out-Null
           Copy-Item "dist\LittleNavmapFlightPlanner\LittleNavmapFlightPlanner.exe" "package\"
           Copy-Item "dist\LittleNavmapFlightPlanner\resources.neu" "package\"
-          Compress-Archive -Path "package\*" -DestinationPath "LittleNavmapFlightPlanner-Windows.zip"
+          Compress-Archive -Path "package\*" -DestinationPath "LittleNavmapFlightPlanner.zip"
 
-      - name: ✅ Download Your EXE Here
+      - name: ✅ Download Your App
         uses: actions/upload-artifact@v4
         with:
           name: LittleNavmapFlightPlanner
-          path: LittleNavmapFlightPlanner-Windows.zip
+          path: LittleNavmapFlightPlanner.zip
           retention-days: 90
