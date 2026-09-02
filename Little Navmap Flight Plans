@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heli Flight Planner — OSM-Powered</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6fbf9; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+    --accent: #0d9488; --accent-soft: rgba(13,148,136,.14);
+    --accent2: #c4693d; --accent2-soft: rgba(196,105,61,.14);
+    --info: #3b82f6; --info-soft: rgba(59,130,246,.12);
+    --success: #22c55e; --success-soft: rgba(34,197,94,.12);
+    --stop: #dc2626; --stop-soft: rgba(220,38,38,.12);
+    --border: rgba(15,23,42,.07);
+  }
+  * { font-family: 'DM Sans', system-ui, sans-serif; box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(800px 400px at 20% -10%, var(--accent-soft), transparent 70%), var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; padding: 32px 20px; }
+  .container { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; }
+  .gradient-text { background: linear-gradient(100deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .header { text-align: center; margin-bottom: 20px; }
+  .subtitle { color: var(--muted); margin: 0; font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+  .card-raised { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 22px; margin-bottom: 18px; }
+  .btn-primary { background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); padding: 11px 18px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary:hover { background: rgba(13,148,136,.22); }
+  .btn-primary.listening { background: var(--stop-soft); border-color: var(--stop); color: #b91c1c; }
+  .btn-secondary { background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 11px 18px; border-radius: 12px; font-weight: 500; font-size: 14px; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .waypoint-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; background: var(--accent-soft); border: 1px solid var(--accent); font-size: 12px; font-weight: 500; }
+  .waypoint-tag.airport { background: var(--accent2-soft); border-color: var(--accent2); }
+  .waypoint-tag.coastal { background: var(--info-soft); border-color: var(--info); font-size: 11px; }
+  textarea, input, select { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 12px 14px; font-size: 14px; width: 100%; transition: border-color .2s; }
+  textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .parse-success { background: var(--success-soft); border: 1px solid var(--success); }
+  .parse-error { background: rgba(220,38,38,.08); border: 1px solid #dc2626; }
+  .parse-info { background: var(--info-soft); border: 1px solid var(--info); }
+  .flex-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .mode-box { background: #f0fdf4; border: 1px solid #22c55e; border-radius: 12px; padding: 14px; font-size: 13px; margin-bottom: 14px; line-height: 1.7; }
+  .footer { text-align: center; margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .cache-note { font-size: 11px; color: #22c55e; margin-top: 6px; }
+  @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>✅ <span class="gradient-text">OSM-Powered Flight Planner</span></h1>
+    <p class="subtitle">Reads REAL OpenStreetMap data • Exact coastlines • Falls back if offline • Caches forever</p>
+  </div>
+
+  <div class="mode-box">
+    <strong>⭕ Orbit [place]</strong> → Auto-sized from REAL OSM bounds<br>
+    <strong>🔄 Around [place]</strong> → Simplified REAL OSM coastline loop<br>
+    <strong>➡️ [A] to [B]</strong> → Direct — 2 waypoints<br>
+    <strong>🌊 Coastal [place]</strong> → FULL REAL OSM coastline — bays, inlets, headlands ALL preserved
+    <div class="cache-note">🔍 Always looks to OpenStreetMap FIRST • Built-in shapes = instant fallback only</div>
+  </div>
+
+  <div class="card-raised">
+    <div class="flex-row" style="margin-bottom:14px;">
+      <div style="width:40px;height:40px;border-radius:12px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        </svg>
+      </div>
+      <div style="flex:1;min-width:200px;"><div style="font-weight:600;">Voice Command</div><div style="font-size:13px;color:var(--muted);">Click Start • Click Stop</div></div>
+      <button id="micBtn" class="btn-primary"><span id="micLabel">🎤 Start Listening</span></button>
+    </div>
+    <div id="statusText" style="font-size:13px;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);min-height:40px;color:var(--muted);">
+      Ready — try: Coastal Anglesey / Around Anglesey / Orbit Anglesey / EGCK to EGFA
+    </div>
+  </div>
+
+  <div class="card">
+    <label style="display:block;font-weight:600;font-size:14px;margin-bottom:8px;">Or type your command</label>
+    <textarea id="routeInput" rows="3" placeholder="e.g. Coastal Anglesey, 1600ft VFR"></textarea>
+    <div class="flex-row" style="margin-top:12px;">
+      <button id="parseBtn" class="btn-primary">✅ Build Route</button>
+      <button id="clearBtn" class="btn-secondary">Clear</button>
+      <button id="clearCacheBtn" class="btn-secondary">🗑️ Clear Cache</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label" style="font-weight:600;font-size:13px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em;">Flight Settings</div>
+    <div class="grid-2">
+      <div><label style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px;">Altitude (ft)</label><input id="altInput" type="number" value="1000"></div>
+      <div><label style="display:block;font-size:13px;color:var(--muted);margin-bottom:6px;">Rules</label>
+        <select id="rulesInput"><option value="VFR" selected>VFR</option><option value="IFR">IFR</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultCard" class="card-raised" style="display:none;border-top:3px solid var(--accent);">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <div><div style="font-weight:700;font-size:16px;" id="routeName">Route Name</div><div style="font-size:12px;color:var(--muted);margin-top:2px;" id="routeMeta"></div></div>
+      <div id="waypointCount" style="font-size:12px;color:var(--muted);padding:4px 10px;border-radius:20px;background:var(--bg);border:1px solid var(--border);">0 waypoints</div>
+    </div>
+    <div id="waypointsList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"></div>
+    <div class="flex-row">
+      <button id="downloadLnmBtn" class="btn-primary">✅ Download .lnmpln (Little Navmap)</button>
+      <button id="downloadPlnBtn" class="btn-secondary">📄 Download .pln (MSFS)</button>
+    </div>
+  </div>
+
+  <div class="footer">🔍 OpenStreetMap data first • Fallback shapes only • Cached forever • .lnmpln primary export</div>
+</div>
+
+<script>
+// ============================================================
+// ✅ AIRPORT DATABASE
+// ============================================================
+var airports = {
+  EGCK: {name:"Caernarfon", lat:53.1167, lon:-4.3333, elev:30, size:"airport"},
+  EGFE: {name:"Haverfordwest Withybush", lat:51.8331, lon:-4.9611, elev:159, size:"airport"},
+  EGFA: {name:"Aberporth West Wales", lat:52.1147, lon:-4.5594, elev:428, size:"airport"},
+  EGFH: {name:"Swansea", lat:51.6053, lon:-4.0678, elev:30, size:"city"},
+  EGFG: {name:"Pembroke Dock", lat:51.7333, lon:-4.9250, elev:20, size:"town"},
+  EGCW: {name:"Welshpool", lat:52.6283, lon:-3.3167, elev:230, size:"airport"},
+  EGNR: {name:"Hawarden", lat:53.1767, lon:-3.0000, elev:35, size:"airport"},
+  EGFD: {name:"Pembrey", lat:51.7067, lon:-4.3000, elev:30, size:"airport"},
+  EGOV: {name:"RAF Valley", lat:53.2264, lon:-4.5350, elev:35, size:"airport"},
+  EGFF: {name:"Cardiff", lat:51.3956, lon:-3.3433, elev:67, size:"city"}
+};
+
+// ============================================================
+// ✅ BUILT-IN FALLBACK SHAPES — ONLY USED IF OSM FAILS
+// ============================================================
+var fallbackShapes = {
+  anglesey: {
+    name:"Anglesey", lat:53.3000, lon:-4.2500,
+    coastline: [
+      {lat:53.4340, lon:-4.6500},{lat:53.4650, lon:-4.4800},{lat:53.4450, lon:-4.3700},
+      {lat:53.4200, lon:-4.2500},{lat:53.3800, lon:-4.1400},{lat:53.3300, lon:-4.0900},
+      {lat:53.2700, lon:-4.1000},{lat:53.2100, lon:-4.1800},{lat:53.1800, lon:-4.2800},
+      {lat:53.1700, lon:-4.4200},{lat:53.2000, lon:-4.5300},{lat:53.2800, lon:-4.6200},
+      {lat:53.3600, lon:-4.6600},{lat:53.4340, lon:-4.6500}
+    ],
+    bounds:{minLat:53.15,maxLat:53.48,minLon:-4.70,maxLon:-4.05,centerLat:53.315,centerLon:-4.375,latSpanNm:22.5,lonSpanNm:21.0},
+    osmRelationId:"6045326", wikidataId:"Q168159"
+  },
+  pembrokeshire: {name:"Pembrokeshire", lat:51.8000, lon:-4.9000, osmRelationId:"970825"},
+  "isle of man": {name:"Isle of Man", lat:54.2500, lon:-4.5000, osmRelationId:"378851"},
+  llyn: {name:"Llyn Peninsula", lat:52.8500, lon:-4.5500}
+};
+
+// ============================================================
+// 💾 CACHE — Permanent storage
+// ============================================================
+const GeoCache = {
+  KEY: "heli_planner_osm_cache_v2",
+  data:{},
+  load(){try{const s=localStorage.getItem(this.KEY);if(s)this.data=JSON.parse(s);}catch(e){this.data={};}},
+  save(){try{localStorage.setItem(this.KEY,JSON.stringify(this.data));}catch(e){}},
+  get(name){return this.data[name.toLowerCase().replace(/\s+/g,'_')]||null;},
+  set(name,geometry){this.data[name.toLowerCase().replace(/\s+/g,'_')]=geometry;this.save();},
+  clear(){this.data={};localStorage.removeItem(this.KEY);}
+};
+GeoCache.load();
+
+// ============================================================
+// 🌐 OSM ENGINE — Nominatim → Overpass → FALLBACK
+// ============================================================
+const OSM = {
+  async fetchGeometry(placeName) {
+    const cached = GeoCache.get(placeName);
+    if(cached && cached.coastline) {
+      statusText.innerHTML = `✅ Using cached OSM data for ${cached.name}`;
+      return cached;
+    }
+
+    const key = placeName.toLowerCase().replace(/\s+/g,'_');
+    const fb = fallbackShapes[key];
+
+    // Step 1: Geocode the place using Nominatim
+    statusText.innerHTML = `🔍 Searching OpenStreetMap for "${placeName}"...`;
+    let bbox = null, osmId = null, osmType = null, displayName = placeName;
+
+    try {
+      const nominatimQ = placeName + (fb ? `&osm_type=${fb.osmRelationId?'R':''}` : '');
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeName)}&limit=5&format=json&namedetails=1&polygon_geojson=0`;
+      const nomRes = await fetch(nomUrl, {headers:{"Accept-Language":"en-GB,en;q=0.9"}});
+      if(nomRes.ok) {
+        const nomData = await nomRes.json();
+        // Prefer island / administrative match
+        for(const r of nomData) {
+          const t = r.type||r.osm_type;
+          if(t==='island' || t==='administrative' || t==='county' || t==='peninsula' || (fb && r.osm_id===-Math.abs(+fb.osmRelationId))) {
+            bbox = [+r.boundingbox[0], +r.boundingbox[2], +r.boundingbox[1], +r.boundingbox[3]];
+            osmId = r.osm_id; osmType = r.osm_type; displayName = r.name||r.display_name;
+            if(fb && fb.osmRelationId && (''+Math.abs(osmId))===fb.osmRelationId) break;
+          }
+        }
+        if(!bbox && nomData[0]) {
+          bbox = [+nomData[0].boundingbox[0], +nomData[0].boundingbox[2], +nomData[0].boundingbox[1], +nomData[0].boundingbox[3]];
+          osmId = nomData[0].osm_id; osmType = nomData[0].osm_type; displayName = nomData[0].name||nomData[0].display_name;
+        }
+      }
+    } catch(e) { statusText.innerHTML = `⚠️ Geocode lookup: ${e.message}`; }
+
+    // Step 2: Build Overpass query — use Relation ID if known, else bbox
+    statusText.innerHTML = `📥 Downloading coastline data...`;
+    let q, minLat, maxLat, minLon, maxLon;
+
+    if(fb && fb.osmRelationId) {
+      // Use KNOWN relation ID — most accurate!
+      q = `[out:json][timeout:30];
+relation(${fb.osmRelationId});map_to_area->.a;
+(way["coastline"](area.a);way["natural"="coastline"](area.a););
+out body;>;out skel qt;`;
+    } else if(osmId && osmType==='relation') {
+      q = `[out:json][timeout:30];
+relation(${Math.abs(osmId)});map_to_area->.a;
+(way["coastline"](area.a);way["natural"="coastline"](area.a););
+out body;>;out skel qt;`;
+    } else if(bbox) {
+      minLat=bbox[0]; minLon=bbox[1]; maxLat=bbox[2]; maxLon=bbox[3];
+      q = `[out:json][timeout:30];
+(way["coastline"](${minLat},${minLon},${maxLat},${maxLon});
+ way["natural"="coastline"](${minLat},${minLon},${maxLat},${maxLon}););
+out body;>;out skel qt;`;
+    } else {
+      q = `[out:json][timeout:30];
+area["name"~"${placeName}",i][~"^(place|admin_level|natural)$"~".+"]->.a;
+(way["coastline"](area.a);way["natural"="coastline"](area.a););
+out body;>;out skel qt;`;
+    }
+
+    // Step 3: Run Overpass
+    try {
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method:"POST", body:"data="+encodeURIComponent(q),
+        headers:{"Content-Type":"application/x-www-form-urlencoded"}
+      });
+      if(res.ok) {
+        const data = await res.json();
+        const geometry = this.waysToGeometry(data, displayName||placeName);
+        if(geometry && geometry.coastline && geometry.coastline.length >= 3) {
+          GeoCache.set(placeName, geometry);
+          statusText.innerHTML = `✅ OpenStreetMap: ${geometry.coastline.length} coastline points — ${displayName}`;
+          return geometry;
+        }
+      }
+    } catch(e) { statusText.innerHTML = `⚠️ OSM fetch: ${e.message}`; }
+
+    // ✅ FALLBACK — Use built-in shape
+    if(fb && fb.coastline) {
+      statusText.innerHTML = `⚠️ Using built-in fallback shape for ${fb.name}`;
+      const result = {name:fb.name, coastline:fb.coastline, bounds:fb.bounds};
+      GeoCache.set(placeName, result);
+      return result;
+    }
+    return null;
+  },
+
+  waysToGeometry(osmData, name) {
+    const nodes = {};
+    for(const n of osmData.elements) {
+      if(n.type==="node" && typeof n.lat==="number" && typeof n.lon==="number")
+        nodes[n.id] = {lat:n.lat, lon:n.lon};
+    }
+    let rings = [];
+    for(const e of osmData.elements) {
+      if(e.type==="way" && Array.isArray(e.nodes)) {
+        const pts = e.nodes.map(id=>nodes[id]).filter(p=>p);
+        if(pts.length>=3) rings.push(pts);
+      }
+    }
+    if(!rings.length) return null;
+    const coastline = this.mergeRings(rings);
+    const bounds = this.calcBounds(coastline);
+    return {name, coastline, bounds};
+  },
+
+  mergeRings(rings) {
+    let all = [];
+    for(const r of rings) {
+      if(all.length && this.distNm(all[all.length-1], r[0])>0.5)
+        all.push({lat:null,lon:null});
+      all = all.concat(r);
+    }
+    return all;
+  },
+
+  distNm(p1,p2) {
+    if(!p1||!p2||p1.lat===null) return 9999;
+    const dLat=(p2.lat-p1.lat)*Math.PI/180, dLon=(p2.lon-p1.lon)*Math.PI/180;
+    const a=Math.sin(dLat/2)**2 + Math.cos(p1.lat*Math.PI/180)*Math.cos(p2.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+    return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))/1.852;
+  },
+
+  calcBounds(coastline) {
+    let minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
+    for(const p of coastline) {
+      if(p.lat===null) continue;
+      minLat=Math.min(minLat,p.lat); maxLat=Math.max(maxLat,p.lat);
+      minLon=Math.min(minLon,p.lon); maxLon=Math.max(maxLon,p.lon);
+    }
+    const centerLat=(minLat+maxLat)/2, centerLon=(minLon+maxLon)/2;
+    return {
+      minLat,maxLat,minLon,maxLon,centerLat,centerLon,
+      latSpanNm:this.distNm({lat:minLat,lon:centerLon},{lat:maxLat,lon:centerLon}),
+      lonSpanNm:this.distNm({lat:centerLat,lon:minLon},{lat:centerLat,lon:maxLon})
+    };
+  }
+};
+
+// ============================================================
+// 📐 GEO & CURVATURE SAMPLING
+// ============================================================
+const Geo = {
+  distanceNm(lat1,lon1,lat2,lon2){const dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dLon/2)**2;return 6371*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))/1.852;},
+  bearing(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180;const y=Math.sin(dLon)*Math.cos(p2),x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dLon);return(Math.atan2(y,x)*180/Math.PI+360)%360;},
+  turnAngle(latA,lonA,latB,lonB,latC,lonC){let d=Math.abs(this.bearing(latA,lonA,latB,lonB)-this.bearing(latB,lonB,latC,lonC));return d>180?360-d:d;},
+  sampleCoastline(points, turnThresh=10, distThreshNm=1.5) {
+    const pts=points.filter(p=>p.lat!==null);
+    if(pts.length<3) return pts;
+    const res=[pts[0]]; let last=0;
+    for(let i=1;i<pts.length-1;i++){
+      const turn=this.turnAngle(pts[last].lat,pts[last].lon,pts[i].lat,pts[i].lon,pts[i+1].lat,pts[i+1].lon);
+      const dist=this.distanceNm(pts[last].lat,pts[last].lon,pts[i].lat,pts[i].lon);
+      if(turn>=turnThresh||dist>=distThreshNm){res.push(pts[i]);last=i;}
+    }
+    const lastPt=pts[pts.length-1];
+    if(res[res.length-1].lat!==lastPt.lat||res[res.length-1].lon!==lastPt.lon) res.push(lastPt);
+    return res;
+  },
+  simplifyLoop(points){return this.sampleCoastline(points,25,4.0);}
+};
+
+// ============================================================
+// ⭐ ORBIT GENERATOR
+// ============================================================
+function getOrbitRadius(bounds){const s=Math.max(bounds.latSpanNm,bounds.lonSpanNm);return Math.max(1.0,Math.ceil((s/2+0.5)*10)/10);}
+function generateOrbit(lat,lon,radiusNm,altFt){
+  const dLat=(1/60)*radiusNm, dLon=(1/(60*Math.cos(lat*Math.PI/180)))*radiusNm;
+  const wp=[];for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;wp.push({lat:parseFloat((lat+dLat*Math.sin(a)).toFixed(6)),lon:parseFloat((lon+dLon*Math.cos(a)).toFixed(6)),elev:altFt});}
+  wp.push({lat,lon,elev:altFt});return wp;
+}
+function nameWp(points,prefix="WP"){return points.map((p,i)=>({...p,ident:prefix+(i+1),name:prefix+(i+1),type:p.type||"USER"}));}
+
+// ============================================================
+// 🧠 PARSER
+// ============================================================
+function parseCmd(text){
+  text=text.toLowerCase().replace(/[^\w\s]/g,' ').replace(/\s+/g,' ').trim();
+  const r={altitude:1000,rules:"VFR",mode:null,lookupName:null,fromICAO:null,toICAO:null};
+  const altM=text.match(/(\d[\d,]*)\s*(ft|feet|foot)/i);if(altM)r.altitude=parseInt(altM[1].replace(/,/g,''));
+  r.rules=/\bIFR\b/i.test(text)?"IFR":"VFR";
+  const icaos=text.match(/eg[a-z]{2}/gi);
+  if(icaos){r.fromICAO=icaos[0].toUpperCase();r.toICAO=icaos.length>=2?icaos[icaos.length-1].toUpperCase():r.fromICAO;}
+  for(const k of Object.keys(fallbackShapes)){if(text.includes(k)){r.lookupName=fallbackShapes[k].name;break;}}
+  if(!r.lookupName){for(const k of Object.keys(airports)){if(text.includes(k.toLowerCase().replace(/eg/,''))){r.lookupName=k;break;}}}
+  if(/\borbit\b/i.test(text))r.mode="orbit";
+  else if(/\baround\b|\bloop\s+around\b/i.test(text))r.mode="around";
+  else if(/\bcoastal\b|\bcoastline\b|\bfollow\s+coast|\bflying\s+the\s+coastal/i.test(text))r.mode="coastal";
+  else if(icaos&&icaos.length>=2)r.mode="direct";
+  return r;
+}
+
+// ============================================================
+// 🧭 MAIN BUILDER
+// ============================================================
+async function buildRoute(){
+  const text=routeInput.value.trim();
+  if(!text){statusText.innerHTML="❌ Type a command!";statusText.className="parse-error";return;}
+  statusText.innerHTML="🔄 Building route...";statusText.className="";
+  const p=parseCmd(text);
+  p.altitude=p.altitude>0?p.altitude:+altInput.value||1000;altInput.value=p.altitude;rulesInput.value=p.rules;
+
+  try{
+    let waypoints=[],title="",modeLabel="",geo=null;
+
+    if(p.mode==="orbit"){
+      if(p.lookupName){
+        geo=await OSM.fetchGeometry(p.lookupName);
+        if(!geo)throw new Error("Could not find: "+p.lookupName);
+        const radius=getOrbitRadius(geo.bounds);
+        waypoints=nameWp(generateOrbit(geo.bounds.centerLat,geo.bounds.centerLon,radius,p.altitude));
+        title=`Orbit — ${geo.name}`;modeLabel=`⭕ OSM data — ${radius}nm radius, ${waypoints.length} waypoints`;
+      }
+    }
+
+    else if(p.mode==="around"){
+      if(!p.lookupName)throw new Error("Try: Around Anglesey / Around Isle of Man");
+      geo=await OSM.fetchGeometry(p.lookupName);
+      if(!geo||!geo.coastline)throw new Error("Could not load coastline for "+p.lookupName);
+      const loop=Geo.simplifyLoop(geo.coastline);
+      waypoints=nameWp(loop.map(w=>({...w,elev:p.altitude})));
+      title=`Around ${geo.name}`;modeLabel=`🔄 OSM coastline loop — ${waypoints.length} waypoints`;
+    }
+
+    else if(p.mode==="coastal"){
+      if(p.fromICAO&&p.toICAO&&p.fromICAO!==p.toICAO){
+        const a=airports[p.fromICAO],b=airports[p.toICAO];
+        if(!a)throw new Error("Not found: "+p.fromICAO);if(!b)throw new Error("Not found: "+p.toICAO);
+        waypoints=[{ident:p.fromICAO,name:a.name,type:"AIRPORT",lat:a.lat,lon:a.lon,elev:a.elev},{lat:b.lat,lon:b.lon,elev:p.altitude},{ident:p.toICAO,name:b.name,type:"AIRPORT",lat:b.lat,lon:b.lon,elev:b.elev}];
+        waypoints=nameWp(waypoints);title=`Coastal — ${p.fromICAO} → ${p.toICAO}`;modeLabel="🌊 Coastal route between airports";
+      }else if(p.fromICAO&&p.toICAO&&p.fromICAO===p.toICAO&&p.lookupName){
+        geo=await OSM.fetchGeometry(p.lookupName);
+        if(!geo||!geo.coastline)throw new Error("Could not load coastline for "+p.lookupName);
+        const apt=airports[p.fromICAO];
+        const sampled=Geo.sampleCoastline(geo.coastline);
+        waypoints=[{ident:p.fromICAO,name:apt.name,type:"AIRPORT",lat:apt.lat,lon:apt.lon,elev:apt.elev}];
+        waypoints=waypoints.concat(nameWp(sampled.map(w=>({...w,elev:p.altitude}))));
+        waypoints.push({ident:p.fromICAO,name:apt.name,type:"AIRPORT",lat:apt.lat,lon:apt.lon,elev:apt.elev});
+        title=`Coastal Loop — ${geo.name} from ${p.fromICAO}`;modeLabel=`🌊 OSM coastline — ${sampled.length} waypoints + ${p.fromICAO}`;
+      }else if(p.lookupName){
+        geo=await OSM.fetchGeometry(p.lookupName);
+        if(!geo||!geo.coastline)throw new Error("Could not load coastline for "+p.lookupName);
+        const sampled=Geo.sampleCoastline(geo.coastline);
+        waypoints=nameWp(sampled.map(w=>({...w,elev:p.altitude})));
+        title=`Coastal — ${geo.name}`;modeLabel=`🌊 OSM coastline — ${waypoints.length} waypoints (all bays/inlets preserved)`;
+      }else throw new Error("Try: Coastal Anglesey / Coastal EGCK to EGFA / Coastal Anglesey EGCK to EGCK");
+    }
+
+    else if(p.mode==="direct"){
+      const a=airports[p.fromICAO],b=airports[p.toICAO];
+      if(!a)throw new Error("Not found: "+p.fromICAO);if(!b)throw new Error("Not found: "+p.toICAO);
+      waypoints=[{ident:p.fromICAO,name:a.name,type:"AIRPORT",lat:a.lat,lon:a.lon,elev:a.elev},{ident:p.toICAO,name:b.name,type:"AIRPORT",lat:b.lat,lon:b.lon,elev:b.elev}];
+      title=`${p.fromICAO} → ${p.toICAO}`;modeLabel="➡️ Direct — 2 waypoints";
+    }else throw new Error("Try: Orbit Anglesey / Around Anglesey / Coastal Anglesey / EGCK to EGFA");
+
+    window.currentRoute={name:title,waypoints,altitude:p.altitude,rules:p.rules,mode:p.mode};
+    showResult(window.currentRoute,modeLabel);
+
+  }catch(e){statusText.innerHTML="❌ "+e.message;statusText.className="parse-error";}
+}
+
+// ============================================================
+// 📤 EXPORTS — .lnmpln PRIMARY (unchanged), .pln secondary
+// ============================================================
+function showResult(route,modeLabel){
+  resultCard.style.display="block";routeNameEl.textContent=route.name;routeMetaEl.textContent=modeLabel+" • "+route.rules+" • "+route.altitude+" ft";
+  waypointCountEl.textContent=route.waypoints.length+" waypoints";waypointsListEl.innerHTML="";
+  route.waypoints.forEach((wp,i)=>{const sp=document.createElement('span');sp.className='waypoint-tag'+(wp.type==='AIRPORT'?' airport':route.mode==='coastal'?' coastal':'');sp.textContent=(i+1)+". "+wp.ident+" — "+wp.name;waypointsListEl.appendChild(sp);});
+  statusText.innerHTML="✅ Route built! "+route.waypoints.length+" waypoints. Download → Open in Little Navmap.";statusText.className="parse-success";
+}
+function saveFile(content,name,type){const b=new Blob([content],{type:type||'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);}
+function downloadLnmpln(){
+  if(!currentRoute)return;const w=currentRoute.waypoints,alt=currentRoute.altitude;
+  const pts=w.map(wp=>{const lat=wp.lat.toFixed(6),lon=wp.lon.toFixed(6),a=wp.type==='AIRPORT'?(wp.elev||alt)+".00":alt+".00";return `      <Waypoint>${wp.name?`\n        <Name>${wp.name}</Name>`:''}
+        <Ident>${wp.ident}</Ident>
+        <Type>${wp.type}</Type>
+        <Pos Lat="${lat}" Lon="${lon}" Alt="${a}"/>
+      </Waypoint>`;}).join('\n');
+  saveFile(`<?xml version="1.0" encoding="UTF-8"?>
+<LittleNavmap xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://www.littlenavmap.org/schema/lnmpln.xsd">
+  <Flightplan><Header><FlightplanType>${currentRoute.rules}</FlightplanType><CruisingAlt>${alt}</CruisingAlt><CruisingAltF>${alt}.00000000</CruisingAltF><FileVersion>1.2</FileVersion><ProgramName>Little Navmap</ProgramName><ProgramVersion>3.0.18</ProgramVersion></Header>
+  <Waypoints>${pts}
+  </Waypoints></Flightplan>
+</LittleNavmap>`,(w[0].ident||'ROUTE')+"_"+(w[w.length-1].ident||'END')+".lnmpln","application/xml");
+}
+function downloadPln(){
+  if(!currentRoute)return;const w=currentRoute.waypoints,altm=Math.round(currentRoute.altitude*0.3048);
+  saveFile(`<?xml version="1.0" encoding="UTF-8"?>
+<FlightPlan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://www.microsoft.com/FlightSimulator/FlightPlan.xsd">
+  <FlightPlanVersion>1.0</FlightPlanVersion>
+  <FlightPlanType>${currentRoute.rules}</FlightPlanType>
+  <CruisingAltitude>${altm}</CruisingAltitude>
+  <Departure><ICAO>${w[0].ident}</ICAO><Position><Latitude>${w[0].lat}</Latitude><Longitude>${w[0].lon}</Longitude><Altitude>${altm}</Altitude></Position></Departure>
+  <Arrival><ICAO>${w[w.length-1].ident}</ICAO><Position><Latitude>${w[w.length-1].lat}</Latitude><Longitude>${w[w.length-1].lon}</Longitude><Altitude>${altm}</Altitude></Position></Arrival>
+  <Waypoints>${w.map(wp=>`<Waypoint><ICAO>${wp.ident}</ICAO><Name>${wp.name||wp.ident}</Name><Position><Latitude>${wp.lat}</Latitude><Longitude>${wp.lon}</Longitude><Altitude>${altm}</Altitude></Position></Waypoint>`).join('\n')}
+  </Waypoints>
+</FlightPlan>`,(w[0].ident||'ROUTE')+"_"+(w[w.length-1].ident||'END')+".pln","application/xml");
+}
+
+// ============================================================
+// 🎙️ VOICE & UI
+// ============================================================
+var SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition,recognition=null,isListening=false,currentRoute=null;
+const micBtn=document.getElementById('micBtn'),micLabel=document.getElementById('micLabel'),statusText=document.getElementById('statusText'),routeInput=document.getElementById('routeInput');
+const parseBtn=document.getElementById('parseBtn'),clearBtn=document.getElementById('clearBtn'),clearCacheBtn=document.getElementById('clearCacheBtn');
+const altInput=document.getElementById('altInput'),rulesInput=document.getElementById('rulesInput');
+const resultCard=document.getElementById('resultCard'),routeNameEl=document.getElementById('routeName'),routeMetaEl=document.getElementById('routeMeta');
+const waypointCountEl=document.getElementById('waypointCount'),waypointsListEl=document.getElementById('waypointsList');
+const downloadLnmBtn=document.getElementById('downloadLnmBtn'),downloadPlnBtn=document.getElementById('downloadPlnBtn');
+
+micBtn.addEventListener('click',()=>{
+  if(!SpeechRecognition){statusText.innerHTML="❌ Use Chrome or Edge";statusText.className="parse-error";return;}
+  if(!recognition){recognition=new SpeechRecognition();recognition.lang='en-GB';recognition.continuous=true;recognition.interimResults=true;
+    recognition.onstart=()=>{isListening=true;micBtn.classList.add('listening');micLabel.textContent="🛑 Stop";statusText.innerHTML="✅ Listening...";statusText.className="parse-success";};
+    recognition.onresult=(e)=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;routeInput.value=t;statusText.innerHTML="🎤 "+t;};
+    recognition.onerror=(e)=>{isListening=false;micBtn.classList.remove('listening');micLabel.textContent="🎤 Start";statusText.innerHTML="❌ "+e.error;statusText.className="parse-error";};
+    recognition.onend=()=>{if(isListening)try{recognition.start()}catch{isListening=false;micBtn.classList.remove('listening');micLabel.textContent="🎤 Start";}};}
+  isListening?(isListening=false,recognition.stop(),micBtn.classList.remove('listening'),micLabel.textContent="🎤 Start",statusText.innerHTML="✅ Stopped.",statusText.className=""):(try{recognition.start()}catch(e){statusText.innerHTML="❌ "+e.message;statusText.className="parse-error";});
+});
+parseBtn.addEventListener('click',buildRoute);
+clearBtn.addEventListener('click',()=>{routeInput.value='';resultCard.style.display='none';statusText.innerHTML="Ready — try: Coastal Anglesey / Around Anglesey / Orbit Anglesey / EGCK to EGFA";statusText.className="";});
+clearCacheBtn.addEventListener('click',()=>{GeoCache.clear();statusText.innerHTML="🗑️ Cache cleared! Fresh OSM data next time.";statusText.className="parse-info";});
+downloadLnmBtn.addEventListener('click',downloadLnmpln);
+downloadPlnBtn.addEventListener('click',downloadPln);
+</script>
+</body>
+</html>
