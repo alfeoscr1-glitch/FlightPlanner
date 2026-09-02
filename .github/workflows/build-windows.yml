@@ -12,17 +12,16 @@ jobs:
       - name: Get your code
         uses: actions/checkout@v4
 
-      - name: Install Neutralino CLI via NPM
-        shell: pwsh
+      - name: Download Neutralino CLI (Direct from GitHub Release)
         run: |
-          npm install -g @neutralinojs/neutralinojs-cli
+          Invoke-WebRequest -Uri "https://github.com/neutralinojs/neutralino-cli/releases/download/v4.15.0/neu-win-x64.exe" -OutFile "neu.exe"
 
-      - name: Verify CLI installed
-        run: neu --version
+      - name: Verify CLI downloaded
+        run: .\neu.exe --version
 
       - name: Setup Project
         run: |
-          neu init --force --template=window
+          .\neu.exe init --force --template=window
           Copy-Item index.html app/index.html -Force
 
       - name: Configure App Settings
@@ -39,7 +38,7 @@ jobs:
           $json | ConvertTo-Json -Depth 10 | Set-Content "app/neutralino.config.json"
 
       - name: Build Standalone EXE
-        run: neu build --release
+        run: .\neu.exe build --release
 
       - name: Package Everything
         run: |
