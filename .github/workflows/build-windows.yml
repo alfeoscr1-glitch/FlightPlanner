@@ -1,47 +1,56 @@
-name: Build Windows EXE
+name: Build Flight Planner EXE
+run-name: Building Windows EXE 🚀
 on:
   push:
-    paths: ['index.html']
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
+      - name: Get your code
         uses: actions/checkout@v4
 
-      - name: Download Neutralino CLI
+      - name: Install Neutralino CLI via NPM
+        shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/neutralinojs/neutralino-cli/releases/latest/download/neu-win-x64.exe" -OutFile "neu.exe"
+          npm install -g @neutralinojs/neutralinojs-cli
 
-      - name: Initialize Neutralino project
-        run: .\neu.exe init --force --template=window
+      - name: Verify CLI installed
+        run: neu --version
 
-      - name: Replace default index.html
-        run: Copy-Item index.html app/index.html -Force
-
-      - name: Configure app settings
+      - name: Setup Project
         run: |
-          $config = Get-Content "app/neutralino.config.json" -Raw | ConvertFrom-Json
-          $config.cli.binaryName = "LittleNavmapFlightPlanner"
-          $config.application.title = "Little Navmap Flight Planner"
-          $config.application.width = 1000
-          $config.application.height = 800
-          $config.application.resizable = $true
-          $config.application.mode = "window"
-          $config.application.extendUserAgent = "FlightPlanner/1.0"
-          $config | ConvertTo-Json -Depth 10 | Set-Content "app/neutralino.config.json"
+          neu init --force --template=window
+          Copy-Item index.html app/index.html -Force
 
-      - name: Build standalone Windows EXE
-        run: .\neu.exe build --release
+      - name: Configure App Settings
+        shell: pwsh
+        run: |
+          $json = Get-Content "app/neutralino.config.json" -Raw | ConvertFrom-Json
+          $json.cli.binaryName = "LittleNavmapFlightPlanner"
+          $json.application.title = "Little Navmap Flight Planner"
+          $json.application.width = 1050
+          $json.application.height = 850
+          $json.application.resizable = $true
+          $json.application.mode = "window"
+          $json.application.enableInspector = $false
+          $json | ConvertTo-Json -Depth 10 | Set-Content "app/neutralino.config.json"
 
-      - name: Package into ZIP
-        run: Compress-Archive -Path "dist/LittleNavmapFlightPlanner/*" -DestinationPath "FlightPlanner-Windows.zip"
+      - name: Build Standalone EXE
+        run: neu build --release
 
-      - name: Upload finished EXE
+      - name: Package Everything
+        run: |
+          New-Item -ItemType Directory -Path "package" -Force | Out-Null
+          Copy-Item "dist\LittleNavmapFlightPlanner\LittleNavmapFlightPlanner.exe" "package\"
+          Copy-Item "dist\LittleNavmapFlightPlanner\resources.neu" "package\"
+          Compress-Archive -Path "package\*" -DestinationPath "LittleNavmapFlightPlanner-Windows.zip"
+
+      - name: ✅ Download Your EXE Here
         uses: actions/upload-artifact@v4
         with:
-          name: FlightPlanner-Windows
-          path: FlightPlanner-Windows.zip
+          name: LittleNavmapFlightPlanner
+          path: LittleNavmapFlightPlanner-Windows.zip
           retention-days: 90
